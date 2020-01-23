@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.87
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Valence", "Valence\Valence\Valence.csproj", "{B3740CF3-5CBD-4F82-86B9-6496FD6FC788}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Valance-Battery-Reader", "Battery Reader\Valance-Battery-Reader.csproj", "{A543C9CD-00A4-4494-9CF7-2E3BAA01577A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B3740CF3-5CBD-4F82-86B9-6496FD6FC788}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3740CF3-5CBD-4F82-86B9-6496FD6FC788}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3740CF3-5CBD-4F82-86B9-6496FD6FC788}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3740CF3-5CBD-4F82-86B9-6496FD6FC788}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A543C9CD-00A4-4494-9CF7-2E3BAA01577A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A543C9CD-00A4-4494-9CF7-2E3BAA01577A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A543C9CD-00A4-4494-9CF7-2E3BAA01577A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A543C9CD-00A4-4494-9CF7-2E3BAA01577A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {30FBDDBB-6630-4E79-828E-C56FE58FF64B}
+	EndGlobalSection
+EndGlobal
