@@ -1,0 +1,24 @@
+version: '3.4'
+
+services:
+  valance-battery-reader:
+    image: valancebatteryreader:dev
+    container_name: Valance-Battery-Reader
+    build:
+      target: base
+      labels:
+        com.microsoft.created-by: "visual-studio"
+        com.microsoft.visual-studio.project-name: "Valance-Battery-Reader"
+    #environment:
+      #- NUGET_FALLBACK_PACKAGES=$container_paths_to_fallback_packages_valance-battery-reader$
+    volumes:
+      - C:\Repositories\Personal\valence\Battery Reader:/app
+      - C:\Users\Administrator\vsdbg\vs2017u5:/remote_debugger:rw
+#$nuget_volume_mapping_valance-battery-reader$
+    entrypoint: tail -f /dev/null
+    labels:
+      com.microsoft.visualstudio.debuggee.program: "dotnet"
+      #com.microsoft.visualstudio.debuggee.arguments: " $debuggee_arguments_probing_paths_valance-battery-reader$ \"/app/bin/Debug/netcoreapp3.1/Valance-Battery-Reader.dll\""
+      com.microsoft.visualstudio.debuggee.workingdirectory: "/app"
+      com.microsoft.visualstudio.debuggee.killprogram: "/bin/sh -c \"if PID=$$(pidof dotnet); then kill $$PID; fi\""
+    tty: true

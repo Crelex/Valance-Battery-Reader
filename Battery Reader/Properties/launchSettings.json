@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Valance-Battery-Reader": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}

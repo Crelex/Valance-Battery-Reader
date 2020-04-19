@@ -1,0 +1,7 @@
+services:
+  valance-battery-reader:
+    build:
+      context: C:\Repositories\Personal\valence
+      dockerfile: Battery Reader/Dockerfile
+    image: valancebatteryreader
+version: '3.4'

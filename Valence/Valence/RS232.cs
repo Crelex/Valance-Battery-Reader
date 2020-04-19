@@ -1,6 +1,7 @@
 ﻿using Microsoft.VisualBasic.CompilerServices;
 using RJCP.IO.Ports;
 using System;
+using System.Threading;
 
 namespace BatteryDialog
 {
@@ -268,14 +269,15 @@ namespace BatteryDialog
                     myserial.StopBits = StopBits.One;
                     break;
             }
-            myserial.ReadTimeout = 50;
-            myserial.WriteTimeout = 50;
+            myserial.ReadTimeout = 75;
+            myserial.WriteTimeout = 75;
             myserial.ReadBufferSize = BufferSize;
             myserial.WriteBufferSize = BufferSize;
             readbuffer = new byte[checked(BufferSize + 1)];
             myserial.Open();
             myserial.DiscardInBuffer();
             myserial.DiscardOutBuffer();
+            //Thread.Sleep(100);
         }
 
         public int Read(int Bytes2Read)
@@ -315,6 +317,7 @@ namespace BatteryDialog
             {
                 myserial.DiscardInBuffer();
                 myserial.Write(Buffer, 0, Buffer.Length);
+                Thread.Sleep(50);
             }
             catch (Exception ex)
             {

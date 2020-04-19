@@ -1,0 +1,9 @@
+C:\Repositories\Personal\valence\Valence\Valence\bin\Debug\netcoreapp3.1\Valence.deps.json
+C:\Repositories\Personal\valence\Valence\Valence\bin\Debug\netcoreapp3.1\Valence.dll
+C:\Repositories\Personal\valence\Valence\Valence\bin\Debug\netcoreapp3.1\Valence.pdb
+C:\Repositories\Personal\valence\Valence\Valence\obj\Debug\netcoreapp3.1\Valence.csprojAssemblyReference.cache
+C:\Repositories\Personal\valence\Valence\Valence\obj\Debug\netcoreapp3.1\Valence.csproj.CoreCompileInputs.cache
+C:\Repositories\Personal\valence\Valence\Valence\obj\Debug\netcoreapp3.1\Valence.AssemblyInfoInputs.cache
+C:\Repositories\Personal\valence\Valence\Valence\obj\Debug\netcoreapp3.1\Valence.AssemblyInfo.cs
+C:\Repositories\Personal\valence\Valence\Valence\obj\Debug\netcoreapp3.1\Valence.dll
+C:\Repositories\Personal\valence\Valence\Valence\obj\Debug\netcoreapp3.1\Valence.pdb

@@ -3,9 +3,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using BatteryDialog;
+using InfluxDB.Client;
+using InfluxDB.Client.Api.Domain;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.VisualBasic.CompilerServices;
 
 namespace mydaemon
 {
@@ -14,13 +17,13 @@ namespace mydaemon
     {
         private static System.Timers.Timer timer = new System.Timers.Timer();
 
-        private static string[] strCellVolt = new string[6];
+        private static string[] strCellVolt = new string[4];
 
-        private static int strCellVoltDiff;
+        private static decimal strCellVoltDiff;
 
-        private static int strCellVoltMin;
+        private static decimal strCellVoltMin;
 
-        private static int strCellVoltMax;
+        private static decimal strCellVoltMax;
 
         private static string[] strCellTemp = new string[6];
 
@@ -30,7 +33,7 @@ namespace mydaemon
 
         private static RS232 paramcom = new RS232();
 
-        private static Communication paramBattery = new Communication();
+        private static ValenceBattery paramBattery = new ValenceBattery();
 
         private static string strVoltNO;
 
@@ -38,25 +41,9 @@ namespace mydaemon
 
         private static string strCurrentCOM;
 
-        private static bool strCurrentStatus;
-
         private static string strErrorMessage;
 
         private static int strID;
-
-        //TODO: set these when you want to monitor 'thresh-holds'
-        private static int strStandardVD;
-
-        private static int strStandardCellMin;
-
-        private static int strStandardCellMax;
-
-        //private Settings m_settings;
-
-        //TODO: Implement Some Type of actual logging.. file, database, whatever...
-        private static string strRecorddatapath;
-
-        private static string strRecordfilename;
 
         private static string m_model;
 
@@ -64,28 +51,49 @@ namespace mydaemon
 
         private static bool boolFirstBalanceFlag;
 
-        public DaemonService() {   }
+        private static WriteApi _writeApi;
+
+        private static int _startingBatteryModuleId;
+        public DaemonService(WriteApi writeApi) { 
+            _writeApi = writeApi;
+            _startingBatteryModuleId = 1;
+        }
         public void start()
         {
-            ReadBattery();
-            SetTimer(2000);
+            strCurrentCOM = "COM6";
+            SetTimer(3000);
         }
 
 
         private static void SetTimer(int invertal)
         {
             timer = new System.Timers.Timer(invertal);
-            timer.Elapsed += OnTimedEvent;
+            timer.Elapsed += CollectSensorInformation_Tick;
             timer.AutoReset = true;
             timer.Enabled = true;
         }
 
-        private static void OnTimedEvent(Object source, ElapsedEventArgs e)
+        private static void CollectSensorInformation_Tick(Object source, ElapsedEventArgs e)
         {
-            Console.Clear();
-            ReadSensors();
-           // Console.WriteLine("The Elapsed event was raised at {0:HH:mm:ss.fff}", e.SignalTime);
+            try
+            {
+                if (_startingBatteryModuleId > 10)
+                    _startingBatteryModuleId = 1;
+
+                OpenBatteryCommunicationChannel(_startingBatteryModuleId);
+                ReadSensors();
+
+                _writeApi.WriteMeasurement("dreamstream", "spikersoft", WritePrecision.Ns, paramBattery);
+                _startingBatteryModuleId++;
+            }
+            catch (Exception ex)
+            {
+                StopRead();
+                SetTimer(350);
+            }
+
         }
+
         private static void WriteError(string error)
         {
             Console.ForegroundColor = ConsoleColor.Red;
@@ -101,28 +109,17 @@ namespace mydaemon
             timer.Stop();
         }
 
-        private static void ReadBattery()
+        private static void OpenBatteryCommunicationChannel(int moduleID = 10)
         {
+            strCurrentID = moduleID.ToString();
+            moduleID = moduleID - 1;
+            
             checked
             {
                 try
             {
                     boolFirstBalanceFlag = true;
                     
-                        strID = 0;
-                        strRecorddatapath = Environment.CurrentDirectory;
-                        strRecordfilename = "valence-logs.csv";
-                        
-                        //module in question "battery" -- might want to scan for this using something like
-                        // loop through modules and fine them automagically? ( hard coded module number for now )
-                        strCurrentID = "1";
-
-
-                        strCurrentCOM = "COM6";
-                        // TODO:
-                        //use RJCP.IO.Ports.SerialPortStream.GetPortNames() and allow selection... i dunno plenty of options..
-
-
                     if (paramcom.IsOpen)
                         {
                             paramcom.Close();
@@ -133,43 +130,32 @@ namespace mydaemon
                             paramcom.Write(paramBattery.Wakeup());
                             paramcom.Close();
                             paramcom.Open(strCurrentCOM, 115200, 8, RS232.DataParity.Parity_Mark, RS232.DataStopBit.StopBit_1, 512);
-                        }
+                    }
                         catch (Exception ex3)
                         {
                             WriteError("Incorrect com port selected!");
                             throw new Exception("Open communication port fail");
                         }
-                        int num = 0;
-                        do
-                        {
                             try
                             {
-                                paramBattery.ADDRESS = num;
+                                paramBattery.ADDRESS = moduleID;
                                 paramcom.Write(paramBattery.ModelReadSend());
                                 if (paramcom.Read(9) != -1 && paramBattery.ModelReadReturn(paramcom.InputStream))
                                 {
-                                    strID = (int)Math.Round((double)strID + Convert.ToDouble((num + 1).ToString()));
+                                    strID = (int)Math.Round((double)strID + Convert.ToDouble((moduleID + 1).ToString()));
                                     if (Convert.ToDouble(strCurrentID) == (double)strID)
                                     {
                                         m_model = paramBattery.MODEL;
                                         paramcom.Close();
-                                        break;
-                                    }
+                            }
                                     strID = 0;
                                 }
                             }
                             catch (Exception ex5)
                             {
-                            throw ex5;
+                                throw ex5;
                             }
-                            num++;
-                        }
-                        while (num <= 100);
-                        //if ((strID == 0) | (Operators.CompareString(m_model, "", TextCompare: false) == 0))
-                        //{
-                        //    throw new Exception("Please check the Com Port or ModuleID");
-                        //}
-                        switch (m_model)
+                    switch (m_model)
                         {
                             case "U1-12XP Rev. 1":
                             case "U24-12XP Rev. 1":
@@ -185,20 +171,13 @@ namespace mydaemon
                                 break;
                         }
                         paramBattery.MODE = strVoltNO;
-                        paramBattery.ADDRESS = (int)Math.Round(Convert.ToDouble(strCurrentID) - 1.0);
+                        paramBattery.ADDRESS = moduleID;
                          
                             if (paramBattery.HardwareRevision == 2)
-                            {
-                             
-                                if (Convert.ToDouble(strVoltNO) == 6.0)
-                                {
-                                  
-                                }
-                            }
                             try
                             {
                                 paramcom.Open(strCurrentCOM, 9600, 8, RS232.DataParity.Parity_Mark, RS232.DataStopBit.StopBit_1, 512);
-                            }
+                        }
                             catch (Exception ex7)
                             {
                                 throw new Exception("Open Communication Port Fail");
@@ -208,8 +187,9 @@ namespace mydaemon
                             {
                                 paramcom.Write(paramBattery.Wakeup());
                             }
-                            catch (Exception ex9)
+                            catch (Exception ex)
                             {
+                                //TODO log
                                 throw new Exception("Wakeup Battery Fail");
                             }
                             paramcom.Close();
@@ -231,7 +211,6 @@ namespace mydaemon
                             }
                             paramcom.Write(paramBattery.ExitCalibrationMode());
                             paramBattery.MODE = strVoltNO;
-                            strCurrentStatus = false;
                             strErrorMessage = "";
                             timer.Enabled = true;
                             boolCommnucateflag = true;
@@ -239,7 +218,7 @@ namespace mydaemon
                 catch (Exception ex15)
                 {
                     paramcom.Close();
-                    WriteError($"Exception: {ex15.Message.ToString()}");
+                    WriteError($"Exception: { ex15.Message }");
                 }
                 finally
                 {
@@ -255,8 +234,10 @@ namespace mydaemon
                 {
                     ReadBatteryBankVoltage(paramcom, paramBattery);
                     ReadBatteryTemperature(paramcom, paramBattery);
-                    ReadRev2Data(paramcom, paramBattery);
+                   // ReadRev2Data(paramcom, paramBattery);
+
                     bool flag = paramBattery.Bal_Cell_1 | paramBattery.Bal_Cell_2 | paramBattery.Bal_Cell_3 | paramBattery.Bal_Cell_4;
+
                     if (Convert.ToDouble(strVoltNO) == 6.0)
                     {
                         flag = (flag | paramBattery.Bal_Cell_5 | paramBattery.Bal_Cell_6);
@@ -289,27 +270,27 @@ namespace mydaemon
                     }
                     catch (Exception ex3)
                     {
-                        strErrorMessage = "Communication Error";
+                        strErrorMessage = "Communication Error Reading SoC";
                     }
-                    try
-                    {
-                        ReadBatteryVersion(paramcom, paramBattery);
-                    }
-                    catch (Exception ex5)
-                    {
-                        strErrorMessage = "Communication Error";
-                    }
+                    //try
+                    //{
+                    //    ReadBatteryVersion(paramcom, paramBattery);
+                    //}
+                    //catch (Exception ex5)
+                    //{
+                    //    strErrorMessage = "Communication Error Reading Battery Version";
+                    //}
                     try
                     {
                         ReadBatteryBalanceStatus(paramcom, paramBattery);
                     }
                     catch (Exception ex7)
                     {
-                        strErrorMessage = "Communication Error";
+                        strErrorMessage = "Communication Error Reading Battery Status";
                     }
                     if (string.IsNullOrEmpty(strErrorMessage))
                     {
-                        Console.WriteLine("No Error!");
+                     //   Console.WriteLine("No Error!");
                     }
                     else
                     {
@@ -317,6 +298,7 @@ namespace mydaemon
                         Console.WriteLine($"Error!: {strErrorMessage.ToString()}");
                         Console.ForegroundColor = ConsoleColor.White;
                     }
+                    strErrorMessage = "";
                 }
                 catch (Exception ex9)
                 {
@@ -337,22 +319,22 @@ namespace mydaemon
                 }
                 catch (Exception ex11)
                 {
-                    Exception ex12 = ex11;
+                    throw ex11;
                 }
             }
         }
-        private static void ReadBatterySocRefresh(RS232 paramcom, Communication paramBattery)
+        private static void ReadBatterySocRefresh(RS232 paramcom, ValenceBattery paramBattery)
         {
             try
             {
                 paramcom.Write(paramBattery.SNSOCReadSend());
                 if (paramcom.Read(23) == -1)
                 {
-                    throw new Exception("Read SOC Error!");
+                    throw new Exception("Read SOC Error on SNSOCReadSend!");
                 }
                 if (!paramBattery.SNSOCReadReturn(paramcom.InputStream))
                 {
-                    throw new Exception("Read SOC Error!");
+                    throw new Exception("Read SOC Error on SNSOCReadReturn!");
                 }
             }
             catch (Exception ex)
@@ -360,7 +342,7 @@ namespace mydaemon
                 throw new Exception(ex.Message.ToString());
             }
         }
-        private static void ReadBatteryBalanceStatus(RS232 paramcom, Communication paramBattery)
+        private static void ReadBatteryBalanceStatus(RS232 paramcom, ValenceBattery paramBattery)
         {
             try
             {
@@ -389,7 +371,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadBatteryVersion(RS232 paramcom, Communication paramBattery)
+        private static void ReadBatteryVersion(RS232 paramcom, ValenceBattery paramBattery)
         {
             try
             {
@@ -412,7 +394,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadBatteryBankVoltage(RS232 paramcom, Communication paramBattery)
+        private static void ReadBatteryBankVoltage(RS232 paramcom, ValenceBattery paramBattery)
         {
             try
             {
@@ -425,65 +407,57 @@ namespace mydaemon
                 {
                     throw new Exception("Read Voltage Error!");
                 }
+
                 strCellVolt[0] = Convert.ToString(paramBattery.VOLT1);
-                strCellVolt[1] = Convert.ToString(paramBattery.VOLT2);
+                strCellVolt[1] = Convert.ToString(paramBattery.VOLT2 );
                 strCellVolt[2] = Convert.ToString(paramBattery.VOLT3);
                 strCellVolt[3] = Convert.ToString(paramBattery.VOLT4);
                 strModuleV = Convert.ToString(paramBattery.VOLTS);
-                strCellVoltDiff = checked(paramBattery.CellVoltage_Max - paramBattery.CellVoltage_Min);
-                strCellVoltMin = paramBattery.CellVoltage_Min;
-                strCellVoltMax = paramBattery.CellVoltage_Max;
+                strCellVoltDiff = (checked(paramBattery.CellVoltage_Max - paramBattery.CellVoltage_Min) * 0.001m);
+                strCellVoltMin = paramBattery.CellVoltage_Min * 0.001m;
+                strCellVoltMax = paramBattery.CellVoltage_Max * 0.001m;
 
-                Console.WriteLine($"C1 voltage: {paramBattery.VOLT1}");
-                Console.WriteLine($"C2 voltage: {paramBattery.VOLT2}");
-                Console.WriteLine($"C3 voltage: {paramBattery.VOLT3}");
-                Console.WriteLine($"C4 voltage: {paramBattery.VOLT4}");
+                Console.WriteLine($"C1 voltage: {strCellVolt[0]}");
+                Console.WriteLine($"C2 voltage: {strCellVolt[1]}");
+                Console.WriteLine($"C3 voltage: {strCellVolt[2]}");
+                Console.WriteLine($"C4 voltage: {strCellVolt[3]}");
 
-                if (Convert.ToDouble(paramBattery.MODE) == 6.0)
-                {
-                    strCellVolt[4] = Convert.ToString(paramBattery.VOLT5);
-                    strCellVolt[5] = Convert.ToString(paramBattery.VOLT6);
-                    // didn't display these, i don't have a 36V battery, someone that does can... ( or mail me one.. )
-                }
-                else
-                {
-                
-                }
-                Console.WriteLine($"Voltage: {paramBattery.VOLTS}");
-
+                Console.WriteLine($"Voltage: {strModuleV}");
                 Console.WriteLine($"Cell Voltage Difference: {Convert.ToString(strCellVoltDiff)}");
                 Console.WriteLine($"Cell Voltage Min: {Convert.ToString(strCellVoltMin)}");
                 Console.WriteLine($"Cell Voltage Max: {Convert.ToString(strCellVoltMax)}");
 
-                // monitoring
-                if (strCellVoltDiff > strStandardVD)
-                {
-                    //TxtStatusVD.BackColor = Color.Pink;
-                    //strVoltDiffStatus = "FAIL";
-                }
-                else
-                {
-                    //TxtStatusVD.BackColor = Color.GreenYellow;
-                    //strVoltDiffStatus = "PASS";
-                }
-                if (strCellVoltMin < strStandardCellMin)
-                {
-                    //txtCellMin.BackColor = Color.Pink;
-                    //strVoltMinStatus = "FAIL";
-                }
-                else
-                {
-                    //txtCellMin.BackColor = Color.GreenYellow;
-                    //strVoltMinStatus = "PASS";
-                }
-                if (strCellVoltMax > strStandardCellMax)
-                {
-                    //txtCellMax.BackColor = Color.Pink;
-                }
-                else
-                {
-                    //txtCellMax.BackColor = Color.GreenYellow;
-                }
+                #region TODO in other software
+                // monitoring TODO: implement things like this in the visual console that reads from the dataset directly**
+                //if (strCellVoltDiff > strStandardVD)
+                //{
+                //    //TxtStatusVD.BackColor = Color.Pink;
+                //    //strVoltDiffStatus = "FAIL";
+                //}
+                //else
+                //{
+                //    //TxtStatusVD.BackColor = Color.GreenYellow;
+                //    //strVoltDiffStatus = "PASS";
+                //}
+                //if (strCellVoltMin < strStandardCellMin)
+                //{
+                //    //txtCellMin.BackColor = Color.Pink;
+                //    //strVoltMinStatus = "FAIL";
+                //}
+                //else
+                //{
+                //    //txtCellMin.BackColor = Color.GreenYellow;
+                //    //strVoltMinStatus = "PASS";
+                //}
+                //if (strCellVoltMax > strStandardCellMax)
+                //{
+                //    //txtCellMax.BackColor = Color.Pink;
+                //}
+                //else
+                //{
+                //    //txtCellMax.BackColor = Color.GreenYellow;
+                //}
+                #endregion
             }
             catch (Exception ex)
             {
@@ -492,7 +466,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadBatteryTemperature(RS232 paramcom, Communication paramBattery)
+        private static void ReadBatteryTemperature(RS232 paramcom, ValenceBattery paramBattery)
         {
             try
             {
@@ -505,20 +479,19 @@ namespace mydaemon
                 {
                     throw new Exception("Read Temperature Error!");
                 }
-                int num = 0;
+
                 strCellTemp[0] = Convert.ToString(paramBattery.TEMP1);
                 strCellTemp[1] = Convert.ToString(paramBattery.TEMP2);
                 strCellTemp[2] = Convert.ToString(paramBattery.TEMP3);
                 strCellTemp[3] = Convert.ToString(paramBattery.TEMP4);
-                strCellTemp[4] = Convert.ToString(paramBattery.TEMP5);
-                strCellTemp[5] = Convert.ToString(paramBattery.TEMP6);
+                //strCellTemp[4] = Convert.ToString(paramBattery.TEMP5);
+                //strCellTemp[5] = Convert.ToString(paramBattery.TEMP6);
                 strPCBATemp = Convert.ToString(paramBattery.TEMPPCB);
+
                 Console.WriteLine($"C1 Temp: {Convert.ToString(paramBattery.TEMP1)}");
                 Console.WriteLine($"C2 Temp: {Convert.ToString(paramBattery.TEMP2)}");
                 Console.WriteLine($"C3 Temp: {Convert.ToString(paramBattery.TEMP3)}");
                 Console.WriteLine($"C4 Temp: {Convert.ToString(paramBattery.TEMP4)}");
-                //Console.WriteLine($"C5 Temp: {Convert.ToString(paramBattery.TEMP5)}");
-                //Console.WriteLine($"C6 Temp: {Convert.ToString(paramBattery.TEMP6)}");
                 Console.WriteLine($"PCBA Temp: {Convert.ToString(paramBattery.TEMPPCB)}");
             }
             catch (Exception ex)
@@ -528,7 +501,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadRev2Data(RS232 paramcom, Communication parambattery)
+        private static void ReadRev2Data(RS232 paramcom, ValenceBattery parambattery)
         {
             try
             {
@@ -564,7 +537,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadEventLog2(RS232 paracom, Communication paramBattery)
+        private static void ReadEventLog2(RS232 paracom, ValenceBattery paramBattery)
         {
             try
             {
@@ -591,7 +564,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadEventLog(RS232 paracom, Communication paramBattery)
+        private static void ReadEventLog(RS232 paracom, ValenceBattery paramBattery)
         {
             try
             {
@@ -622,7 +595,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadWattHour(RS232 paramcom, Communication parambattery)
+        private static void ReadWattHour(RS232 paramcom, ValenceBattery parambattery)
         {
             try
             {
@@ -642,7 +615,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadStatusByte(RS232 paramcom, Communication parambattery)
+        private static void ReadStatusByte(RS232 paramcom, ValenceBattery parambattery)
         {
             try
             {
@@ -673,7 +646,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadCalCycleCount(RS232 paracom, Communication paramBattery)
+        private static void ReadCalCycleCount(RS232 paracom, ValenceBattery paramBattery)
         {
             try
             {
@@ -696,7 +669,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadMaximums(RS232 paracom, Communication paramBattery)
+        private static void ReadMaximums(RS232 paracom, ValenceBattery paramBattery)
         {
             try
             {
@@ -722,7 +695,7 @@ namespace mydaemon
             }
         }
 
-        private static void ReadBatterySoc(RS232 paramcom, Communication paramBattery)
+        private static void ReadBatterySoc(RS232 paramcom, ValenceBattery paramBattery)
         {
             try
             {
@@ -805,7 +778,7 @@ namespace mydaemon
                 throw ex;
             }
         }
-        private static void Openbalancing(RS232 paramcom, Communication paramBattery)
+        private static void Openbalancing(RS232 paramcom, ValenceBattery paramBattery)
         {
             var errorMsg = "Open balancing Return  Error!";
             try
